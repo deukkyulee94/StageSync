@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import * as repo from "@/lib/data/repository";
 import {
@@ -24,7 +24,7 @@ import {
   sortRehearsalsAsc,
   sortRehearsalsDesc,
 } from "@/lib/recommend";
-import { copyText } from "@/lib/share";
+import { isMobileDevice, shareOrCopyText } from "@/lib/share";
 import {
   ROLE_LABELS,
   isAdmin,
@@ -130,6 +130,11 @@ export default function HomePage() {
   const [weekProductionId, setWeekProductionId] = useState("");
   const [copyBusy, setCopyBusy] = useState(false);
   const [weekOverviewOpen, setWeekOverviewOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    setIsMobile(isMobileDevice());
+  }, []);
 
   const upcoming = useMemo(() => {
     if (!user) return [];
@@ -246,7 +251,7 @@ export default function HomePage() {
     }
   }
 
-  async function copyWeeklyText() {
+  async function shareWeeklyText() {
     if (!activeWeekProductionId) return;
     setCopyBusy(true);
     try {
@@ -255,10 +260,17 @@ export default function HomePage() {
         activeWeekProductionId,
         weekStart,
       );
-      await copyText(text);
-      alert("주간 일정 텍스트를 복사했습니다. 단톡에 붙여넣으세요.");
+      const result = await shareOrCopyText(text, "Stage Sync 주간 일정");
+      if (result === "copied") {
+        alert(
+          isMobile
+            ? "메시지를 복사했습니다. 카카오톡에 붙여넣어 주세요."
+            : "주간 일정 텍스트를 복사했습니다. 카카오톡에 붙여넣어 공유하세요.",
+        );
+      }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "복사에 실패했습니다.");
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      alert(err instanceof Error ? err.message : "공유에 실패했습니다.");
     } finally {
       setCopyBusy(false);
     }
@@ -428,10 +440,14 @@ export default function HomePage() {
               <button
                 type="button"
                 className="btn btn-ghost w-full"
-                onClick={copyWeeklyText}
+                onClick={shareWeeklyText}
                 disabled={!activeWeekProductionId || copyBusy}
               >
-                {copyBusy ? "복사 중…" : "주간 일정 텍스트 복사 (전달용)"}
+                {copyBusy
+                  ? "준비 중…"
+                  : isMobile
+                    ? "주간 일정 카카오톡으로 전달"
+                    : "주간 일정 텍스트 복사 (전달용)"}
               </button>
             </>
           ))}

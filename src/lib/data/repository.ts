@@ -838,7 +838,7 @@ export function joinRehearsal(
 ): AppData {
   const rehearsal = data.rehearsals.find((r) => r.id === rehearsalId);
   if (!rehearsal) throw new Error("연습을 찾을 수 없습니다.");
-  if (rehearsal.participantIds.includes(userId)) return data;
+  if ((rehearsal.participantIds ?? []).includes(userId)) return data;
 
   const roles = getUserRolesInProduction(data, rehearsal.productionId, userId);
   let resolvedRoleId: string | null;
@@ -855,23 +855,28 @@ export function joinRehearsal(
     throw new Error("배역을 선택해주세요.");
   }
 
+  // 빈 participantSlots에 신규만 붙이면 기존 인원이 표시에서 사라짐 → 현재 라인업을 먼저 해석
+  const baseSlots = resolveRehearsalSlots(data, rehearsal);
+  const participantSlots = baseSlots.some((s) => s.userId === userId)
+    ? baseSlots
+    : [...baseSlots, { roleId: resolvedRoleId ?? "", userId }];
+
   return {
     ...data,
     rehearsals: data.rehearsals.map((r) =>
       r.id === rehearsalId
         ? {
             ...r,
-            participantIds: [...r.participantIds, userId],
+            // 장면(locationNote)·ensemble 연결은 최초 등록 유지
+            locationNote: r.locationNote,
+            ensembleId: r.ensembleId,
+            ensembleIds: r.ensembleIds,
+            participantIds: [...(r.participantIds ?? []), userId],
             participantRoles: {
               ...(r.participantRoles ?? {}),
               [userId]: resolvedRoleId,
             },
-            participantSlots: [
-              ...(r.participantSlots ?? []),
-              ...(resolvedRoleId
-                ? [{ roleId: resolvedRoleId, userId }]
-                : []),
-            ],
+            participantSlots,
           }
         : r,
     ),
@@ -901,7 +906,7 @@ export function leaveRehearsal(
   delete participantRoles[userId];
   const participantNotes = { ...(rehearsal.participantNotes ?? {}) };
   delete participantNotes[userId];
-  const participantSlots = (rehearsal.participantSlots ?? []).filter(
+  const participantSlots = resolveRehearsalSlots(data, rehearsal).filter(
     (s) => s.userId !== userId,
   );
 
@@ -912,6 +917,9 @@ export function leaveRehearsal(
         r.id === rehearsalId
           ? {
               ...r,
+              locationNote: r.locationNote,
+              ensembleId: r.ensembleId,
+              ensembleIds: r.ensembleIds,
               participantIds: remaining,
               participantRoles,
               participantNotes,
@@ -1018,7 +1026,14 @@ export function resolveRehearsalSlots(
   rehearsal: Rehearsal,
 ): EnsembleSlot[] {
   if (rehearsal.participantSlots && rehearsal.participantSlots.length > 0) {
-    return rehearsal.participantSlots;
+    // 과거 버그로 slots에 신규만 남은 경우 participantIds로 누락 인원 복구
+    const slots = [...rehearsal.participantSlots];
+    for (const userId of rehearsal.participantIds ?? []) {
+      if (slots.some((s) => s.userId === userId)) continue;
+      const roleId = resolveParticipantRoleId(data, rehearsal, userId);
+      slots.push({ roleId: roleId ?? "", userId });
+    }
+    return slots;
   }
 
   const ensembleIds = rehearsalEnsembleIds(rehearsal);

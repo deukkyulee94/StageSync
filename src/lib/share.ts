@@ -73,19 +73,15 @@ export async function copyText(text: string): Promise<void> {
  * PC: 메시지 복사
  * 모바일: 시스템 공유 시트(카카오톡 선택) → 실패 시 복사
  */
-export async function shareRehearsalMessage(
-  data: AppData,
-  rehearsal: Rehearsal,
+export async function shareOrCopyText(
+  text: string,
+  title = "Stage Sync",
 ): Promise<"copied" | "shared"> {
-  const text = buildRehearsalShareMessage(data, rehearsal);
   const mobile = isMobileDevice();
 
   if (mobile && typeof navigator.share === "function") {
     try {
-      await navigator.share({
-        title: "Stage Sync 연습 일정",
-        text,
-      });
+      await navigator.share({ title, text });
       return "shared";
     } catch (err) {
       // 사용자가 공유 취소한 경우
@@ -98,4 +94,18 @@ export async function shareRehearsalMessage(
 
   await copyText(text);
   return "copied";
+}
+
+/**
+ * PC: 메시지 복사
+ * 모바일: 시스템 공유 시트(카카오톡 선택) → 실패 시 복사
+ */
+export async function shareRehearsalMessage(
+  data: AppData,
+  rehearsal: Rehearsal,
+): Promise<"copied" | "shared"> {
+  return shareOrCopyText(
+    buildRehearsalShareMessage(data, rehearsal),
+    "Stage Sync 연습 일정",
+  );
 }

@@ -23,32 +23,34 @@ export default function GuidePage() {
         </p>
       </header>
 
-      <div className="flex gap-1 rounded-xl border border-[var(--line)] surface-soft p-1">
-        <button
-          type="button"
-          className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${
-            tab === "user"
-              ? "bg-[var(--forest)] text-[var(--on-forest)]"
-              : "text-[var(--ink-muted)]"
-          }`}
-          onClick={() => setTab("user")}
-        >
-          일반 사용자
-        </button>
-        <button
-          type="button"
-          className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${
-            tab === "admin"
-              ? "bg-[var(--forest)] text-[var(--on-forest)]"
-              : "text-[var(--ink-muted)]"
-          }`}
-          onClick={() => setTab("admin")}
-        >
-          관리자
-        </button>
-      </div>
+      {admin && (
+        <div className="flex gap-1 rounded-xl border border-[var(--line)] surface-soft p-1">
+          <button
+            type="button"
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${
+              tab === "user"
+                ? "bg-[var(--forest)] text-[var(--on-forest)]"
+                : "text-[var(--ink-muted)]"
+            }`}
+            onClick={() => setTab("user")}
+          >
+            일반 사용자
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${
+              tab === "admin"
+                ? "bg-[var(--forest)] text-[var(--on-forest)]"
+                : "text-[var(--ink-muted)]"
+            }`}
+            onClick={() => setTab("admin")}
+          >
+            관리자
+          </button>
+        </div>
+      )}
 
-      {tab === "user" ? <UserGuide /> : <AdminGuide />}
+      {admin && tab === "admin" ? <AdminGuide /> : <UserGuide />}
     </div>
   );
 }
