@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Fraunces, Outfit } from "next/font/google";
 import { AppProvider } from "@/context/AppContext";
 import { AppShell } from "@/components/AppShell";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 
 const display = Fraunces({
@@ -15,6 +17,8 @@ const body = Outfit({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
+
+const themeInitScript = `(function(){try{var k='stage-sync-theme';var p=localStorage.getItem(k)||'system';var d=p==='dark'||(p!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.style.colorScheme=d?'dark':'light';}catch(e){}})();`;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://stage-sync-mu.vercel.app"),
@@ -64,7 +68,10 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#f3f1ec",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6faf8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d1412" },
+  ],
   viewportFit: "cover",
 };
 
@@ -74,11 +81,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className={`${display.variable} ${body.variable} h-full`}>
+    <html
+      lang="ko"
+      className={`${display.variable} ${body.variable} h-full`}
+      suppressHydrationWarning
+    >
       <body className="min-h-full antialiased">
-        <AppProvider>
-          <AppShell>{children}</AppShell>
-        </AppProvider>
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
+        <ThemeProvider>
+          <AppProvider>
+            <AppShell>{children}</AppShell>
+          </AppProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

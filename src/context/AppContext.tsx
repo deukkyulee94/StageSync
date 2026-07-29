@@ -128,7 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!found) {
         return {
           ok: false,
-          error: "이름(또는 휴대폰) / 비밀번호가 올바르지 않습니다.",
+          error: "휴대폰 번호 / 비밀번호가 올바르지 않습니다.",
         };
       }
       setUser(found);

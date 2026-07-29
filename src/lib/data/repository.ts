@@ -4,6 +4,7 @@ import type {
   AvailabilitySlot,
   CastRole,
   DayOfWeek,
+  EnsembleSlot,
   Production,
   ProductionMember,
   Rehearsal,
@@ -12,41 +13,20 @@ import type {
   UserRole,
 } from "@/types";
 import { DAY_INDEX, isAdmin } from "@/types";
-import { slotsFromTrack } from "@/lib/ensemble";
+import { rehearsalEnsembleIds, slotsFromTrack } from "@/lib/ensemble";
+import { addDaysYmd, weekdayIndexFromYmd } from "@/lib/kst";
+import { validateTimeRange } from "@/lib/time";
 import { normalizePhone, uid } from "./store";
 
-/** 휴대폰 또는 이름 + PIN 로그인 (테스트 편의: 이름만으로도 가능) */
+/** 휴대폰 + PIN 로그인 */
 export function login(
   data: AppData,
   identifier: string,
   pin: string,
 ): User | null {
-  const raw = identifier.trim();
-  if (!raw || !pin) return null;
-
-  const phone = normalizePhone(raw);
-  if (phone.length >= 10) {
-    const byPhone = data.users.find((u) => u.phone === phone && u.pin === pin);
-    if (byPhone) return byPhone;
-  }
-
-  const nameKey = raw.replace(/\s+/g, "").toLowerCase();
-  const byNameExact = data.users.find(
-    (u) =>
-      u.pin === pin &&
-      u.name.replace(/\s+/g, "").toLowerCase() === nameKey,
-  );
-  if (byNameExact) return byNameExact;
-
-  // 부분 일치 (예: "승준", "석호A")
-  const byNamePartial = data.users.filter(
-    (u) =>
-      u.pin === pin &&
-      u.name.replace(/\s+/g, "").toLowerCase().includes(nameKey),
-  );
-  if (byNamePartial.length === 1) return byNamePartial[0];
-
-  return null;
+  const phone = normalizePhone(identifier);
+  if (phone.length < 10 || !pin) return null;
+  return data.users.find((u) => u.phone === phone && u.pin === pin) ?? null;
 }
 
 export function changePin(
@@ -151,6 +131,9 @@ export function deleteUser(data: AppData, userId: string): AppData {
       return {
         ...r,
         participantIds: (r.participantIds ?? []).filter((id) => id !== userId),
+        participantSlots: (r.participantSlots ?? []).filter(
+          (s) => s.userId !== userId,
+        ),
         participantRoles,
         participantNotes,
       };
@@ -618,6 +601,8 @@ export function upsertAvailability(
   data: AppData,
   input: Omit<AvailabilitySlot, "id"> & { id?: string },
 ): AppData {
+  const timeErr = validateTimeRange(input.startTime, input.endTime);
+  if (timeErr) throw new Error(timeErr);
   if (input.id) {
     return {
       ...data,
@@ -674,6 +659,8 @@ export function upsertAvailabilityPattern(
   if (input.days.length === 0) {
     throw new Error("반복 요일을 하나 이상 선택해주세요.");
   }
+  const timeErr = validateTimeRange(input.startTime, input.endTime);
+  if (timeErr) throw new Error(timeErr);
   if (input.id) {
     return {
       ...data,
@@ -709,17 +696,14 @@ export function removeAvailabilityPattern(data: AppData, id: string): AppData {
 }
 
 function dayOfWeekFromDate(dateStr: string): DayOfWeek {
-  const d = new Date(dateStr + "T12:00:00");
-  // JS: 0=일 … 6=토 → mon-first index
-  const js = d.getDay();
+  // JS: 0=일 … 6=토 → mon-first index (KST 달력일)
+  const js = weekdayIndexFromYmd(dateStr);
   const idx = js === 0 ? 6 : js - 1;
   return DAY_INDEX[idx];
 }
 
 function addDays(dateStr: string, n: number): string {
-  const d = new Date(dateStr + "T12:00:00");
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return addDaysYmd(dateStr, n);
 }
 
 /** 활성 반복 패턴을 주간 슬롯으로 펼쳐 가용성에 반영 */
@@ -769,24 +753,42 @@ export function createRehearsal(
   const participantIds = input.participantIds ?? [];
   let participantRoles = { ...(input.participantRoles ?? {}) };
 
+  const ensembleIds =
+    input.ensembleIds && input.ensembleIds.length > 0
+      ? input.ensembleIds
+      : input.ensembleId
+        ? [input.ensembleId]
+        : [];
+
   // 장면 슬롯 기준으로 본캐 배역 채우기
-  if (input.ensembleId) {
-    const ensemble = data.castEnsembles.find((e) => e.id === input.ensembleId);
+  for (const ensembleId of ensembleIds) {
+    const ensemble = data.castEnsembles.find((e) => e.id === ensembleId);
     for (const slot of ensemble?.slots ?? []) {
-      if (participantIds.includes(slot.userId) && participantRoles[slot.userId] === undefined) {
+      if (
+        participantIds.includes(slot.userId) &&
+        participantRoles[slot.userId] === undefined
+      ) {
         participantRoles[slot.userId] = slot.roleId;
       }
     }
   }
 
+  const participantSlots =
+    input.participantSlots && input.participantSlots.length > 0
+      ? input.participantSlots
+      : buildParticipantSlotsFromRoles(participantIds, participantRoles);
+
   const rehearsal: Rehearsal = {
     ...input,
     participantIds,
     participantRoles,
+    participantSlots,
     participantNotes: input.participantNotes ?? {},
     place: input.place ?? "",
     requiresAdmin: input.requiresAdmin ?? false,
     adminConfirmed: input.adminConfirmed ?? false,
+    ensembleIds,
+    ensembleId: ensembleIds[0] ?? null,
     id: uid("rh"),
     status: input.status ?? "proposed",
     createdAt: new Date().toISOString(),
@@ -864,6 +866,12 @@ export function joinRehearsal(
               ...(r.participantRoles ?? {}),
               [userId]: resolvedRoleId,
             },
+            participantSlots: [
+              ...(r.participantSlots ?? []),
+              ...(resolvedRoleId
+                ? [{ roleId: resolvedRoleId, userId }]
+                : []),
+            ],
           }
         : r,
     ),
@@ -893,6 +901,9 @@ export function leaveRehearsal(
   delete participantRoles[userId];
   const participantNotes = { ...(rehearsal.participantNotes ?? {}) };
   delete participantNotes[userId];
+  const participantSlots = (rehearsal.participantSlots ?? []).filter(
+    (s) => s.userId !== userId,
+  );
 
   return {
     data: {
@@ -904,6 +915,7 @@ export function leaveRehearsal(
               participantIds: remaining,
               participantRoles,
               participantNotes,
+              participantSlots,
             }
           : r,
       ),
@@ -918,6 +930,36 @@ export function setRehearsalPlace(
   place: string,
 ): AppData {
   return updateRehearsal(data, rehearsalId, { place: place.trim() });
+}
+
+/** 연습 완료 처리 (선택). 미완료여도 날짜가 지나면 지난 일정으로 이동 */
+export function markRehearsalDone(
+  data: AppData,
+  rehearsalId: string,
+  completionNote?: string,
+): AppData {
+  const rehearsal = data.rehearsals.find((r) => r.id === rehearsalId);
+  if (!rehearsal) throw new Error("연습을 찾을 수 없습니다.");
+  if (rehearsal.status === "cancelled") {
+    throw new Error("취소된 연습은 완료 처리할 수 없습니다.");
+  }
+  return updateRehearsal(data, rehearsalId, {
+    status: "done",
+    completionNote: completionNote?.trim() || undefined,
+  });
+}
+
+export function reopenRehearsal(
+  data: AppData,
+  rehearsalId: string,
+): AppData {
+  const rehearsal = data.rehearsals.find((r) => r.id === rehearsalId);
+  if (!rehearsal) throw new Error("연습을 찾을 수 없습니다.");
+  if (rehearsal.status !== "done") return data;
+  return updateRehearsal(data, rehearsalId, {
+    status: "confirmed",
+    completionNote: undefined,
+  });
 }
 
 export function setParticipantNote(
@@ -946,28 +988,112 @@ function resolveParticipantRoleId(
   const stored = rehearsal.participantRoles?.[userId];
   if (stored !== undefined) return stored;
 
-  const ensemble = rehearsal.ensembleId
-    ? data.castEnsembles.find((e) => e.id === rehearsal.ensembleId)
-    : null;
-  const slot = ensemble?.slots.find((s) => s.userId === userId);
-  if (slot) return slot.roleId;
+  for (const ensembleId of rehearsalEnsembleIds(rehearsal)) {
+    const ensemble = data.castEnsembles.find((e) => e.id === ensembleId);
+    const slot = ensemble?.slots.find((s) => s.userId === userId);
+    if (slot) return slot.roleId;
+  }
 
   const roles = getUserRolesInProduction(data, rehearsal.productionId, userId);
   if (roles.length === 1) return roles[0].id;
   return null;
 }
 
-/** 참가자 표시: `이름(배역)` (배역 없으면 이름만) */
+function buildParticipantSlotsFromRoles(
+  participantIds: string[],
+  participantRoles: Record<string, string | null | undefined>,
+): EnsembleSlot[] {
+  return participantIds
+    .map((userId) => {
+      const roleId = participantRoles[userId];
+      if (!roleId) return null;
+      return { roleId, userId };
+    })
+    .filter((s): s is EnsembleSlot => s !== null);
+}
+
+/** 연습 라인업 슬롯 — 여러 장면·대타 배역을 전부 포함 */
+export function resolveRehearsalSlots(
+  data: AppData,
+  rehearsal: Rehearsal,
+): EnsembleSlot[] {
+  if (rehearsal.participantSlots && rehearsal.participantSlots.length > 0) {
+    return rehearsal.participantSlots;
+  }
+
+  const ensembleIds = rehearsalEnsembleIds(rehearsal);
+  const participantIds = rehearsal.participantIds ?? [];
+  if (ensembleIds.length > 0) {
+    const slots: EnsembleSlot[] = [];
+    const claimedSubs = new Set<string>();
+
+    for (const ensembleId of ensembleIds) {
+      const ensemble = data.castEnsembles.find((e) => e.id === ensembleId);
+      if (!ensemble) continue;
+      for (const slot of ensemble.slots) {
+        if (
+          participantIds.length === 0 ||
+          participantIds.includes(slot.userId)
+        ) {
+          slots.push(slot);
+          continue;
+        }
+        // 대타: 같은 배역으로 참가 중인 다른 인원
+        const subId = participantIds.find(
+          (uid) =>
+            !claimedSubs.has(uid) &&
+            rehearsal.participantRoles?.[uid] === slot.roleId,
+        );
+        if (subId) {
+          claimedSubs.add(subId);
+          slots.push({ roleId: slot.roleId, userId: subId });
+        } else {
+          // 참가자 id가 일부만 저장된 경우에도 장면 배역은 누락하지 않음
+          slots.push(slot);
+        }
+      }
+    }
+
+    for (const userId of participantIds) {
+      if (slots.some((s) => s.userId === userId)) continue;
+      const roleId = resolveParticipantRoleId(data, rehearsal, userId);
+      slots.push({ roleId: roleId ?? "", userId });
+    }
+
+    if (slots.length > 0) return slots;
+  }
+
+  return participantIds.map((userId) => {
+    const roleId = resolveParticipantRoleId(data, rehearsal, userId);
+    return { roleId: roleId ?? "", userId };
+  });
+}
+
+/** 참가자 표시: 슬롯별 `이름(배역)` — 같은 사람이 여러 배역이면 `이름(배역1, 배역2)` */
 export function getRehearsalParticipantLabels(
   data: AppData,
   rehearsal: Rehearsal,
 ): string[] {
-  return (rehearsal.participantIds ?? []).map((userId) => {
+  const slots = resolveRehearsalSlots(data, rehearsal);
+  const order: string[] = [];
+  const roleIdsByUser = new Map<string, string[]>();
+
+  for (const slot of slots) {
+    if (!roleIdsByUser.has(slot.userId)) {
+      order.push(slot.userId);
+      roleIdsByUser.set(slot.userId, []);
+    }
+    if (!slot.roleId) continue;
+    const list = roleIdsByUser.get(slot.userId)!;
+    if (!list.includes(slot.roleId)) list.push(slot.roleId);
+  }
+
+  return order.map((userId) => {
     const name = data.users.find((u) => u.id === userId)?.name ?? "?";
-    const roleId = resolveParticipantRoleId(data, rehearsal, userId);
-    if (!roleId) return name;
-    const roleName = data.roles.find((r) => r.id === roleId)?.name;
-    return roleName ? `${name}(${roleName})` : name;
+    const roleNames = (roleIdsByUser.get(userId) ?? [])
+      .map((roleId) => data.roles.find((r) => r.id === roleId)?.name)
+      .filter((n): n is string => !!n);
+    return roleNames.length > 0 ? `${name}(${roleNames.join(", ")})` : name;
   });
 }
 

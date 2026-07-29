@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useApp } from "@/context/AppContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import * as repo from "@/lib/data/repository";
 import { SESSION_KEY } from "@/lib/data/store";
 
@@ -69,6 +70,10 @@ export default function LoginPage() {
         </p>
       </header>
 
+      <div className="mb-4 flex justify-end">
+        <ThemeToggle variant="compact" />
+      </div>
+
       {needsSetup ? (
         <form onSubmit={onSetup} className="card-panel space-y-4 p-5 page-enter">
           <div className="field">
@@ -84,10 +89,14 @@ export default function LoginPage() {
             <label htmlFor="phone">휴대폰</label>
             <input
               id="phone"
-              inputMode="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="tel"
               placeholder="01012345678"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) =>
+                setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))
+              }
               required
             />
           </div>
@@ -120,12 +129,17 @@ export default function LoginPage() {
       ) : (
         <form onSubmit={onSubmit} className="card-panel space-y-4 p-5 page-enter">
           <div className="field">
-            <label htmlFor="phone">이름 또는 휴대폰</label>
+            <label htmlFor="phone">휴대폰</label>
             <input
               id="phone"
-              autoComplete="username"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="tel"
+              placeholder="01012345678"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) =>
+                setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))
+              }
               required
             />
           </div>
@@ -137,6 +151,8 @@ export default function LoginPage() {
               inputMode="numeric"
               pattern="\d{4}"
               maxLength={4}
+              autoComplete="current-password"
+              placeholder="비밀번호 입력"
               value={pin}
               onChange={(e) =>
                 setPin(e.target.value.replace(/\D/g, "").slice(0, 4))

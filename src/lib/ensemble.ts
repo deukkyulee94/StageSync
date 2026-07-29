@@ -4,6 +4,7 @@ import type {
   EnsembleSlot,
   User,
 } from "@/types";
+import { weekDatesFromYmd } from "@/lib/kst";
 
 export interface SubstituteCandidate {
   roleId: string;
@@ -69,6 +70,90 @@ export function getAlternateEnsemble(
 ): CastEnsemble | null {
   if (!ensemble.alternateEnsembleId) return null;
   return data.castEnsembles.find((e) => e.id === ensemble.alternateEnsembleId) ?? null;
+}
+
+export interface RoleSubstituteOption {
+  userId: string;
+  source: "same_role" | "alternate";
+}
+
+/**
+ * 슬롯 대타 후보: A/B 반대 캐스트 우선 + 동일 배역 배정 배우.
+ * `excludeUserIds`에 이미 라인업에 있는 인원을 넣어 중복 배정을 막는다.
+ */
+export function listSubstituteOptionsForSlot(
+  data: AppData,
+  ensemble: CastEnsemble,
+  roleId: string,
+  primaryUserId: string,
+  excludeUserIds: Iterable<string> = [],
+): RoleSubstituteOption[] {
+  const blocked = new Set(excludeUserIds);
+  blocked.add(primaryUserId);
+  const seen = new Set<string>();
+  const options: RoleSubstituteOption[] = [];
+
+  const push = (userId: string, source: RoleSubstituteOption["source"]) => {
+    if (blocked.has(userId) || seen.has(userId)) return;
+    seen.add(userId);
+    options.push({ userId, source });
+  };
+
+  const alt = getAlternateEnsemble(data, ensemble);
+  if (alt) {
+    const altSlot = alt.slots.find((s) => s.roleId === roleId);
+    if (altSlot) push(altSlot.userId, "alternate");
+  }
+
+  for (const id of getSameRoleAlternates(data, roleId, primaryUserId)) {
+    push(id, "same_role");
+  }
+
+  return options;
+}
+
+/** roleId → 대타 userId. 없는 배역은 본캐 유지 */
+export function applySlotSubstitutions(
+  ensemble: CastEnsemble,
+  substitutions: Record<string, string>,
+): EnsembleSlot[] {
+  return ensemble.slots.map((slot) => ({
+    roleId: slot.roleId,
+    userId: substitutions[slot.roleId] ?? slot.userId,
+  }));
+}
+
+export function hasSlotSubstitutions(
+  substitutions: Record<string, string> | undefined,
+): boolean {
+  return !!substitutions && Object.keys(substitutions).length > 0;
+}
+
+export function substituteLocationNote(
+  ensembleName: string,
+  hasSubstitute: boolean,
+): string {
+  return hasSubstitute ? `${ensembleName}(대타)` : ensembleName;
+}
+
+/** 여러 장면 라벨을 한 연습 카드용으로 합침 */
+export function combinedLocationNote(
+  parts: { name: string; hasSubstitute: boolean }[],
+): string {
+  return parts
+    .map((p) => substituteLocationNote(p.name, p.hasSubstitute))
+    .join(", ");
+}
+
+/** rehearsal에 연결된 장면 id 목록 (구형 ensembleId 호환) */
+export function rehearsalEnsembleIds(rehearsal: {
+  ensembleId?: string | null;
+  ensembleIds?: string[] | null;
+}): string[] {
+  if (rehearsal.ensembleIds && rehearsal.ensembleIds.length > 0) {
+    return rehearsal.ensembleIds;
+  }
+  return rehearsal.ensembleId ? [rehearsal.ensembleId] : [];
 }
 
 export function findSubstitutesForMissing(
@@ -137,11 +222,7 @@ export function evaluateEnsembleWeek(
 ): EnsembleDayStatus[] {
   const allowRoleSubstitute = options?.allowRoleSubstitute ?? false;
   const primaryIds = [...new Set(ensemble.slots.map((s) => s.userId))];
-  const weekDates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart + "T12:00:00");
-    d.setDate(d.getDate() + i);
-    return d.toISOString().slice(0, 10);
-  });
+  const weekDates = weekDatesFromYmd(weekStart);
 
   // 대타 후보 pool에 넣을 유저 (alternate + same role)
   const poolIds = new Set(primaryIds);

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useApp } from "@/context/AppContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import * as repo from "@/lib/data/repository";
 import { ROLE_LABELS } from "@/types";
 
@@ -33,6 +34,8 @@ export default function ProfilePage() {
           {ROLE_LABELS[user.role]} · {user.phone}
         </p>
       </header>
+
+      <ThemeToggle />
 
       <Link href="/guide" className="btn btn-soft w-full">
         이용 가이드 보기

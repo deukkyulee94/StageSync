@@ -23,12 +23,12 @@ export default function GuidePage() {
         </p>
       </header>
 
-      <div className="flex gap-1 rounded-xl border border-[var(--line)] bg-white/70 p-1">
+      <div className="flex gap-1 rounded-xl border border-[var(--line)] surface-soft p-1">
         <button
           type="button"
           className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${
             tab === "user"
-              ? "bg-[var(--forest)] text-white"
+              ? "bg-[var(--forest)] text-[var(--on-forest)]"
               : "text-[var(--ink-muted)]"
           }`}
           onClick={() => setTab("user")}
@@ -39,7 +39,7 @@ export default function GuidePage() {
           type="button"
           className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${
             tab === "admin"
-              ? "bg-[var(--forest)] text-white"
+              ? "bg-[var(--forest)] text-[var(--on-forest)]"
               : "text-[var(--ink-muted)]"
           }`}
           onClick={() => setTab("admin")}
@@ -100,7 +100,7 @@ function UserGuide() {
       </p>
       <ol className="space-y-2">
         <Step n={1} title="로그인" href="/login" linkLabel="로그인 화면">
-          <p>이름 또는 휴대폰 번호와 4자리 비밀번호로 로그인합니다.</p>
+          <p>휴대폰 번호와 4자리 비밀번호로 로그인합니다.</p>
           <p>처음 비밀번호는 관리자가 알려준 값을 사용하세요. (예시 : 0000)</p>
         </Step>
         <Step n={2} title="비밀번호 변경" href="/profile" linkLabel="나 탭">
