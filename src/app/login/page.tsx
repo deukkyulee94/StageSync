@@ -2,7 +2,6 @@
 
 import { FormEvent, useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import * as repo from "@/lib/data/repository";
 import { SESSION_KEY } from "@/lib/data/store";
 
@@ -69,10 +68,6 @@ export default function LoginPage() {
             : "페어·장면 연습 일정을 한곳에서 조율하세요."}
         </p>
       </header>
-
-      <div className="mb-4 flex justify-end">
-        <ThemeToggle variant="compact" />
-      </div>
 
       {needsSetup ? (
         <form onSubmit={onSetup} className="card-panel space-y-4 p-5 page-enter">
