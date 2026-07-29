@@ -3,33 +3,22 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import * as repo from "@/lib/data/repository";
+import { addDaysYmd, startOfWeekMondayKst } from "@/lib/kst";
+import { validateTimeRange } from "@/lib/time";
 import { DAY_INDEX, DAY_LABELS, type DayOfWeek } from "@/types";
-
-function startOfWeek(d = new Date()): string {
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const mon = new Date(d);
-  mon.setDate(d.getDate() + diff);
-  return mon.toISOString().slice(0, 10);
-}
-
-function addDays(dateStr: string, n: number): string {
-  const d = new Date(dateStr + "T12:00:00");
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
 
 const DAY_KO = ["월", "화", "수", "목", "금", "토", "일"];
 
 export default function AvailabilityPage() {
   const { data, user, setData } = useApp();
-  const [weekStart, setWeekStart] = useState(startOfWeek());
+  const [weekStart, setWeekStart] = useState(() => startOfWeekMondayKst());
   const [productionId, setProductionId] = useState("");
-  const [selectedDate, setSelectedDate] = useState(weekStart);
+  const [selectedDate, setSelectedDate] = useState(() => startOfWeekMondayKst());
   const [startTime, setStartTime] = useState("19:00");
   const [endTime, setEndTime] = useState("22:00");
   const [note, setNote] = useState("");
   const [patternDays, setPatternDays] = useState<DayOfWeek[]>(["tue", "thu"]);
+  const [timeError, setTimeError] = useState("");
   const [patternError, setPatternError] = useState("");
   const [mode, setMode] = useState<"day" | "pattern">("day");
 
@@ -37,7 +26,7 @@ export default function AvailabilityPage() {
   const activeProductionId = productionId || productions[0]?.id || "";
 
   const weekDates = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    () => Array.from({ length: 7 }, (_, i) => addDaysYmd(weekStart, i)),
     [weekStart],
   );
 
@@ -58,22 +47,40 @@ export default function AvailabilityPage() {
   function onSaveDay(e: FormEvent) {
     e.preventDefault();
     if (!activeProductionId) return;
-    setData((prev) =>
-      repo.upsertAvailability(prev, {
-        userId: user!.id,
-        productionId: activeProductionId,
-        date: selectedDate,
-        startTime,
-        endTime,
-        note: note || undefined,
-      }),
-    );
+    const err = validateTimeRange(startTime, endTime);
+    if (err) {
+      setTimeError(err);
+      return;
+    }
+    setTimeError("");
+    try {
+      setData((prev) =>
+        repo.upsertAvailability(prev, {
+          userId: user!.id,
+          productionId: activeProductionId,
+          date: selectedDate,
+          startTime,
+          endTime,
+          note: note || undefined,
+        }),
+      );
+    } catch (saveErr) {
+      setTimeError(
+        saveErr instanceof Error ? saveErr.message : "저장에 실패했습니다.",
+      );
+    }
   }
 
   function onSavePattern(e: FormEvent) {
     e.preventDefault();
     setPatternError("");
+    setTimeError("");
     if (!activeProductionId) return;
+    const err = validateTimeRange(startTime, endTime);
+    if (err) {
+      setTimeError(err);
+      return;
+    }
     try {
       setData((prev) => {
         const withPattern = repo.upsertAvailabilityPattern(prev, {
@@ -152,7 +159,7 @@ export default function AvailabilityPage() {
         </select>
       </div>
 
-      <div className="flex gap-1 rounded-xl border border-[var(--line)] bg-white/70 p-1">
+      <div className="flex gap-1 rounded-xl border border-[var(--line)] surface-soft p-1">
         {(
           [
             ["day", "날짜별"],
@@ -164,7 +171,7 @@ export default function AvailabilityPage() {
             type="button"
             className={`flex-1 rounded-lg py-2 text-sm font-semibold ${
               mode === key
-                ? "bg-[var(--forest)] text-white"
+                ? "bg-[var(--forest)] text-[var(--on-forest)]"
                 : "text-[var(--ink-muted)]"
             }`}
             onClick={() => setMode(key)}
@@ -180,7 +187,7 @@ export default function AvailabilityPage() {
             <button
               type="button"
               className="btn btn-ghost"
-              onClick={() => setWeekStart(addDays(weekStart, -7))}
+              onClick={() => setWeekStart(addDaysYmd(weekStart, -7))}
             >
               ← 지난주
             </button>
@@ -188,7 +195,7 @@ export default function AvailabilityPage() {
             <button
               type="button"
               className="btn btn-ghost"
-              onClick={() => setWeekStart(addDays(weekStart, 7))}
+              onClick={() => setWeekStart(addDaysYmd(weekStart, 7))}
             >
               다음주 →
             </button>
@@ -206,7 +213,7 @@ export default function AvailabilityPage() {
                   className={`rounded-xl border px-1 py-2 text-center transition-colors ${
                     selected
                       ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                      : "border-[var(--line)] bg-white/80"
+                      : "border-[var(--line)] surface-soft"
                   }`}
                 >
                   <span className="block text-[0.65rem] text-[var(--ink-muted)]">
@@ -232,7 +239,11 @@ export default function AvailabilityPage() {
                   id="start"
                   type="time"
                   value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
+                  max={endTime || undefined}
+                  onChange={(e) => {
+                    setStartTime(e.target.value);
+                    setTimeError("");
+                  }}
                   required
                 />
               </div>
@@ -242,11 +253,20 @@ export default function AvailabilityPage() {
                   id="end"
                   type="time"
                   value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
+                  min={startTime || undefined}
+                  onChange={(e) => {
+                    setEndTime(e.target.value);
+                    setTimeError("");
+                  }}
                   required
                 />
               </div>
             </div>
+            {timeError && (
+              <p className="text-sm font-medium text-[var(--danger)]">
+                {timeError}
+              </p>
+            )}
             <div className="field">
               <label htmlFor="note">메모 (선택)</label>
               <input
@@ -280,7 +300,7 @@ export default function AvailabilityPage() {
                   className={`min-h-10 min-w-10 rounded-xl border px-3 text-sm font-semibold ${
                     on
                       ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                      : "border-[var(--line)] bg-white"
+                      : "border-[var(--line)] bg-[var(--bg-elevated)]"
                   }`}
                   onClick={() => togglePatternDay(day)}
                 >
@@ -291,24 +311,39 @@ export default function AvailabilityPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="field">
-              <label>시작</label>
+              <label htmlFor="pattern-start">시작</label>
               <input
+                id="pattern-start"
                 type="time"
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+                max={endTime || undefined}
+                onChange={(e) => {
+                  setStartTime(e.target.value);
+                  setTimeError("");
+                }}
                 required
               />
             </div>
             <div className="field">
-              <label>종료</label>
+              <label htmlFor="pattern-end">종료</label>
               <input
+                id="pattern-end"
                 type="time"
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
+                min={startTime || undefined}
+                onChange={(e) => {
+                  setEndTime(e.target.value);
+                  setTimeError("");
+                }}
                 required
               />
             </div>
           </div>
+          {timeError && (
+            <p className="text-sm font-medium text-[var(--danger)]">
+              {timeError}
+            </p>
+          )}
           <div className="field">
             <label>메모</label>
             <input

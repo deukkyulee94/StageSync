@@ -136,12 +136,22 @@ export interface Rehearsal {
   participantIds: string[];
   /** 참석 시 선택한 배역 (userId -> roleId). null이면 배역 없음 */
   participantRoles?: Record<string, string | null>;
+  /**
+   * 확정 시점 라인업 슬롯 (여러 장면·대타 포함).
+   * 있으면 참가자 표시는 이 목록 기준(배역 전부).
+   */
+  participantSlots?: EnsembleSlot[];
   /** 참가자별 댓글/메모 (userId -> text) */
   participantNotes?: Record<string, string>;
+  /** 연결된 장면 (단일 장면 연습) */
   ensembleId?: string | null;
+  /** 연결된 장면들 (여러 장면을 한 연습으로 묶을 때) */
+  ensembleIds?: string[] | null;
   requiresAdmin: boolean;
   adminConfirmed: boolean;
   status: "proposed" | "confirmed" | "cancelled" | "done";
+  /** 완료 처리 시 다음 연습 포인트 등 */
+  completionNote?: string;
   createdAt: string;
 }
 

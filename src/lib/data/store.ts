@@ -50,15 +50,25 @@ export function migrate(raw: unknown): AppData {
     ...a,
     trackId: a.trackId ?? null,
   }));
-  const rehearsals = (data.rehearsals ?? []).map((r) => ({
-    ...r,
-    participantIds: r.participantIds ?? [],
-    participantRoles: r.participantRoles ?? {},
-    participantNotes: r.participantNotes ?? {},
-    place: r.place ?? "",
-    requiresAdmin: r.requiresAdmin ?? false,
-    ensembleId: r.ensembleId ?? null,
-  }));
+  const rehearsals = (data.rehearsals ?? []).map((r) => {
+    const ensembleIds =
+      r.ensembleIds && r.ensembleIds.length > 0
+        ? r.ensembleIds
+        : r.ensembleId
+          ? [r.ensembleId]
+          : [];
+    return {
+      ...r,
+      participantIds: r.participantIds ?? [],
+      participantRoles: r.participantRoles ?? {},
+      participantNotes: r.participantNotes ?? {},
+      participantSlots: r.participantSlots ?? [],
+      place: r.place ?? "",
+      requiresAdmin: r.requiresAdmin ?? false,
+      ensembleId: ensembleIds[0] ?? null,
+      ensembleIds,
+    };
+  });
 
   return {
     users: data.users ?? [],

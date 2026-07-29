@@ -16,7 +16,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-[var(--line)] bg-[var(--bg-elevated)]"
+      className="bottom-nav fixed bottom-0 left-1/2 z-40 w-full max-w-[480px] -translate-x-1/2 border-t border-[var(--line)]"
       style={{ paddingBottom: "var(--safe-bottom)" }}
       aria-label="하단 메뉴"
     >

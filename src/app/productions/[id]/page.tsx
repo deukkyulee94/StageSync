@@ -7,11 +7,13 @@ import { useApp } from "@/context/AppContext";
 import * as repo from "@/lib/data/repository";
 import {
   JoinRehearsalControls,
+  RehearsalCompleteControls,
   RehearsalInfoBlock,
   RehearsalInfoEditor,
   RehearsalParticipantBlock,
+  RehearsalShareButton,
 } from "@/components/RehearsalParticipants";
-import { isRehearsalListVisible } from "@/lib/recommend";
+import { isRehearsalListVisible, isUserInRehearsal } from "@/lib/recommend";
 import { isAdmin } from "@/types";
 
 type Tab = "roles" | "teams" | "ensembles" | "members" | "rehearsals";
@@ -224,6 +226,23 @@ export default function ProductionDetailPage({
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "저장 실패");
+    }
+  }
+
+  function completeRehearsal(rehearsalId: string, note: string) {
+    try {
+      setData((prev) => repo.markRehearsalDone(prev, rehearsalId, note));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "완료 처리 실패");
+    }
+  }
+
+  function reopenRehearsal(rehearsalId: string) {
+    if (!confirm("완료를 취소하고 확정 일정으로 되돌릴까요?")) return;
+    try {
+      setData((prev) => repo.reopenRehearsal(prev, rehearsalId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "되돌리기 실패");
     }
   }
 
@@ -568,7 +587,7 @@ export default function ProductionDetailPage({
       {tab === "teams" && (
         <div className="space-y-4">
           <p className="text-sm text-[var(--ink-muted)]">
-            A/B팀 더블캐스트용입니다. 팀에 배역·배우를 배정한 뒤 연습 유닛을
+            A/B팀 더블캐스트용(완벽한 타인/도덕적 도둑 케이스)입니다. <br />팀에 배역·배우를 배정한 뒤 연습 유닛을
             만드세요.
           </p>
           {canManage && (
@@ -748,7 +767,7 @@ export default function ProductionDetailPage({
       {tab === "ensembles" && (
         <div className="space-y-4">
           <p className="text-sm text-[var(--ink-muted)]">
-            장면·페어 연습 유닛입니다. 배역+배우 슬롯으로 확정 라인업을
+            장면·페어 연습 유닛(죽음 혹은 아님/올모스트 메인 케이스)입니다. <br />배역+배우 슬롯으로 확정 라인업을
             만듭니다.
           </p>
           {canManage && (
@@ -1116,7 +1135,8 @@ export default function ProductionDetailPage({
                         ? "확정"
                         : r.status}
                   </span>
-                  {canManage && (
+                  {(canManage || isUserInRehearsal(r, user.id)) &&
+                    r.status !== "done" && (
                     <button
                       type="button"
                       className="text-sm font-semibold text-[var(--danger)]"
@@ -1132,12 +1152,19 @@ export default function ProductionDetailPage({
                 user={user}
                 onSave={(patch) => saveRehearsalInfo(r.id, patch)}
               />
+              <RehearsalShareButton data={data} rehearsal={r} />
               <JoinRehearsalControls
                 data={data}
                 rehearsal={r}
                 user={user}
                 onJoin={(roleId) => joinRehearsal(r.id, roleId)}
                 onLeave={() => leaveRehearsal(r.id)}
+              />
+              <RehearsalCompleteControls
+                rehearsal={r}
+                user={user}
+                onComplete={(note) => completeRehearsal(r.id, note)}
+                onReopen={() => reopenRehearsal(r.id)}
               />
               {canManage && r.status === "proposed" && (
                 <div className="space-y-2">
