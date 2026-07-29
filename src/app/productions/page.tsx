@@ -4,12 +4,17 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import * as repo from "@/lib/data/repository";
-import { isAdmin } from "@/types";
+import {
+  CASTING_MODE_LABELS,
+  isAdmin,
+  type CastingMode,
+} from "@/types";
 
 export default function ProductionsPage() {
   const { data, user, setData } = useApp();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
+  const [castingMode, setCastingMode] = useState<CastingMode>("scene");
 
   if (!user) return null;
 
@@ -18,8 +23,11 @@ export default function ProductionsPage() {
 
   function onCreate(e: FormEvent) {
     e.preventDefault();
-    setData((prev) => repo.createProduction(prev, { title }));
+    setData((prev) =>
+      repo.createProduction(prev, { title, castingMode }),
+    );
     setTitle("");
+    setCastingMode("scene");
     setOpen(false);
   }
 
@@ -56,6 +64,46 @@ export default function ProductionsPage() {
               required
             />
           </div>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-semibold text-[var(--ink-muted)]">
+              캐스팅 방식
+            </legend>
+            <p className="text-xs text-[var(--ink-muted)]">
+              작품마다 팀 단위 또는 장면 단위 중 하나로 운영합니다. 나중에 바꿀
+              수 있지만, 처음부터 맞게 고르는 편이 편합니다.
+            </p>
+            {(
+              [
+                ["scene", "장면마다 배우 라인업을 따로 잡습니다 (죽음 혹은 아님 / 올모스트 메인)"],
+                ["team", "A/B팀처럼 더블캐스트 팀으로 나눕니다 (완벽한 타인 / 도덕적 도둑)"],
+              ] as const
+            ).map(([value, hint]) => (
+              <label
+                key={value}
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 ${
+                  castingMode === value
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)]/50"
+                    : "border-[var(--line)] bg-white/70"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="castingMode"
+                  className="mt-1"
+                  checked={castingMode === value}
+                  onChange={() => setCastingMode(value)}
+                />
+                <span className="text-sm">
+                  <span className="font-semibold">
+                    {CASTING_MODE_LABELS[value]}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-[var(--ink-muted)]">
+                    {hint}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
           <button type="submit" className="btn btn-secondary w-full">
             작품 만들기
           </button>
@@ -76,7 +124,12 @@ export default function ProductionsPage() {
                 href={`/productions/${p.id}`}
                 className="card-panel block p-4 active:scale-[0.99]"
               >
-                <h2 className="font-semibold text-lg">{p.title}</h2>
+                <div className="flex items-start justify-between gap-2">
+                  <h2 className="font-semibold text-lg">{p.title}</h2>
+                  <span className="chip shrink-0">
+                    {p.castingMode === "team" ? "팀" : "장면"}
+                  </span>
+                </div>
                 <p className="mt-3 text-xs text-[var(--ink-muted)]">
                   멤버 {memberCount} · 배역 {roleCount}
                 </p>

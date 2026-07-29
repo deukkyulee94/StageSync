@@ -1,4 +1,4 @@
-import type { AppData } from "@/types";
+import type { AppData, CastingMode, Production } from "@/types";
 
 export const STORAGE_KEY = "stage-sync-data-v4";
 export const SESSION_KEY = "stage-sync-session-v1";
@@ -43,6 +43,20 @@ function groupsFromPairs(
   return groups;
 }
 
+/** 기존 작품: 팀/장면 중 하나로 추정. 현재 운영 데이터는 장면(CASE2). */
+export function inferCastingMode(
+  production: Pick<Production, "id"> & Partial<Production>,
+  data: Pick<AppData, "tracks">,
+): CastingMode {
+  if (production.castingMode === "team" || production.castingMode === "scene") {
+    return production.castingMode;
+  }
+  // 사용자 확인: 현재 작품은 CASE2(장면)뿐 → 기본 scene
+  // (팀이 있어도 명시적 모드가 없으면 scene으로 둔다)
+  void data;
+  return "scene";
+}
+
 export function migrate(raw: unknown): AppData {
   const data = raw as Partial<AppData>;
   const roles = data.roles ?? [];
@@ -50,6 +64,7 @@ export function migrate(raw: unknown): AppData {
     ...a,
     trackId: a.trackId ?? null,
   }));
+  const tracks = data.tracks ?? [];
   const rehearsals = (data.rehearsals ?? []).map((r) => {
     const ensembleIds =
       r.ensembleIds && r.ensembleIds.length > 0
@@ -70,11 +85,16 @@ export function migrate(raw: unknown): AppData {
     };
   });
 
+  const productions = (data.productions ?? []).map((p) => ({
+    ...p,
+    castingMode: inferCastingMode(p, { tracks }),
+  }));
+
   return {
     users: data.users ?? [],
-    productions: data.productions ?? [],
+    productions,
     productionMembers: data.productionMembers ?? [],
-    tracks: data.tracks ?? [],
+    tracks,
     roles,
     castGroups: groupsFromPairs(roles, data.castGroups ?? []),
     castEnsembles: data.castEnsembles ?? [],
@@ -83,6 +103,14 @@ export function migrate(raw: unknown): AppData {
     availabilityPatterns: data.availabilityPatterns ?? [],
     rehearsals,
   };
+}
+
+/** migrate로 castingMode가 채워졌는지 (저장 여부 판단용) */
+export function needsCastingModePersist(raw: unknown): boolean {
+  const data = raw as Partial<AppData>;
+  return (data.productions ?? []).some(
+    (p) => p.castingMode !== "team" && p.castingMode !== "scene",
+  );
 }
 
 export function loadData(): AppData {
@@ -94,7 +122,8 @@ export function loadData(): AppData {
       localStorage.getItem("stage-sync-data-v2") ??
       localStorage.getItem("stage-sync-data-v1");
     if (!raw) return createEmptyData();
-    const migrated = migrate(JSON.parse(raw));
+    const parsed = JSON.parse(raw) as unknown;
+    const migrated = migrate(parsed);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
     return migrated;
   } catch {
