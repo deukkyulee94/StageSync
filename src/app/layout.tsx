@@ -17,11 +17,41 @@ const body = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Stage Sync",
-  description: "극단 연습 일정·장소·페어 조율 앱",
+  metadataBase: new URL("https://stage-sync-mu.vercel.app"),
+  title: {
+    default: "Stage Sync",
+    template: "%s · Stage Sync",
+  },
+  description:
+    "극단 연습 일정을 한곳에서. 장면별 가능일을 모아 연습 날짜를 확정하세요.",
+  applicationName: "Stage Sync",
   icons: {
     icon: [{ url: "/favicon.png", type: "image/png" }],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    siteName: "Stage Sync",
+    title: "Stage Sync",
+    description:
+      "극단 연습 일정을 한곳에서. 장면별 가능일을 모아 연습 날짜를 확정하세요.",
+    url: "https://stage-sync-mu.vercel.app",
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Stage Sync",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Stage Sync",
+    description:
+      "극단 연습 일정을 한곳에서. 장면별 가능일을 모아 연습 날짜를 확정하세요.",
+    images: ["/og.png"],
   },
   appleWebApp: {
     capable: true,
