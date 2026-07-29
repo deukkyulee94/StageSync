@@ -1,36 +1,24 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Stage Sync
 
-## Getting Started
+극단 연극 연습 일정·팀/장면 라인업 조율 웹앱 (모바일 웹 최적화).
 
-First, run the development server:
+## 빠른 시작
 
 ```bash
+npm install
+cp .env.example .env.local   # Supabase 키 입력
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Supabase
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Dashboard → SQL → [`supabase/schema.sql`](supabase/schema.sql) 실행(권장).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+테이블이 없으면 Storage(`stage-sync/app-data.json`)로 폴백합니다.
 
-## Learn More
+최초 실행 시 계정이 없으면 로그인 화면에서 **관리자 계정**을 만들 수 있습니다.
 
-To learn more about Next.js, take a look at the following resources:
+## 데이터
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 앱 상태는 Supabase에만 저장 (`/api/data`)
+- 연습 일정은 장면 선택 후 인원별 가능일 표·겹치는 날짜로 잡습니다
