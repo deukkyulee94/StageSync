@@ -14,9 +14,24 @@ import {
   RehearsalShareButton,
 } from "@/components/RehearsalParticipants";
 import { isRehearsalListVisible, isUserInRehearsal } from "@/lib/recommend";
-import { isAdmin } from "@/types";
+import { CASTING_MODE_LABELS, isAdmin } from "@/types";
 
 type Tab = "roles" | "teams" | "ensembles" | "members" | "rehearsals";
+
+const TEAM_TABS: { key: Tab; label: string }[] = [
+  { key: "roles", label: "배역" },
+  { key: "teams", label: "팀" },
+  { key: "ensembles", label: "연습유닛" },
+  { key: "members", label: "멤버" },
+  { key: "rehearsals", label: "연습" },
+];
+
+const SCENE_TABS: { key: Tab; label: string }[] = [
+  { key: "roles", label: "배역" },
+  { key: "ensembles", label: "장면" },
+  { key: "members", label: "멤버" },
+  { key: "rehearsals", label: "연습" },
+];
 
 export default function ProductionDetailPage({
   params,
@@ -98,6 +113,11 @@ export default function ProductionDetailPage({
     return <p className="text-[var(--danger)]">접근 권한이 없습니다.</p>;
   }
 
+  const castingMode = production.castingMode ?? "scene";
+  const isTeamMode = castingMode === "team";
+  const tabs = isTeamMode ? TEAM_TABS : SCENE_TABS;
+  const activeTab = tabs.some((t) => t.key === tab) ? tab : "roles";
+
   function onAddRole(e: FormEvent) {
     e.preventDefault();
     setError("");
@@ -114,13 +134,14 @@ export default function ProductionDetailPage({
 
   function assign(roleId: string, userId: string, trackId?: string | null) {
     if (!userId) return;
+    const resolvedTrack =
+      trackId !== undefined
+        ? trackId
+        : isTeamMode
+          ? assignTrackId || null
+          : null;
     setData((prev) =>
-      repo.assignActorToRole(
-        prev,
-        roleId,
-        userId,
-        trackId !== undefined ? trackId : assignTrackId || null,
-      ),
+      repo.assignActorToRole(prev, roleId, userId, resolvedTrack),
     );
   }
 
@@ -396,6 +417,9 @@ export default function ProductionDetailPage({
         <div className="mt-2 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="font-display text-3xl">{production.title}</h1>
+            <p className="mt-1 text-sm text-[var(--ink-muted)]">
+              {CASTING_MODE_LABELS[castingMode]}
+            </p>
           </div>
           {canManage && (
             <button
@@ -417,20 +441,12 @@ export default function ProductionDetailPage({
       </Link>
 
       <div className="flex gap-1 overflow-x-auto rounded-xl border border-[var(--line)] bg-white/70 p-1">
-        {(
-          [
-            ["roles", "배역"],
-            ["teams", "팀"],
-            ["ensembles", "장면"],
-            ["members", "멤버"],
-            ["rehearsals", "연습"],
-          ] as const
-        ).map(([key, label]) => (
+        {tabs.map(({ key, label }) => (
           <button
             key={key}
             type="button"
             className={`shrink-0 flex-1 rounded-lg px-2 py-2 text-sm font-semibold ${
-              tab === key
+              activeTab === key
                 ? "bg-[var(--forest)] text-white"
                 : "text-[var(--ink-muted)]"
             }`}
@@ -443,7 +459,7 @@ export default function ProductionDetailPage({
 
       {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
-      {tab === "roles" && (
+      {activeTab === "roles" && (
         <div className="space-y-4">
           {canManage && (
             <form onSubmit={onAddRole} className="card-panel space-y-3 p-4">
@@ -469,7 +485,7 @@ export default function ProductionDetailPage({
             </form>
           )}
 
-          {canManage && tracks.length > 0 && (
+          {canManage && isTeamMode && tracks.length > 0 && (
             <div className="field">
               <label>배우 연결 시 기본 팀</label>
               <select
@@ -518,24 +534,26 @@ export default function ProductionDetailPage({
                           </span>
                           {canManage ? (
                             <>
-                              <select
-                                className="min-h-9 flex-1 rounded-lg border border-[var(--line)] bg-white px-2 text-sm"
-                                value={a.trackId ?? ""}
-                                onChange={(e) =>
-                                  changeAssignmentTrack(
-                                    role.id,
-                                    a.userId,
-                                    e.target.value || null,
-                                  )
-                                }
-                              >
-                                <option value="">팀 미지정</option>
-                                {tracks.map((t) => (
-                                  <option key={t.id} value={t.id}>
-                                    {t.name}
-                                  </option>
-                                ))}
-                              </select>
+                              {isTeamMode && (
+                                <select
+                                  className="min-h-9 flex-1 rounded-lg border border-[var(--line)] bg-white px-2 text-sm"
+                                  value={a.trackId ?? ""}
+                                  onChange={(e) =>
+                                    changeAssignmentTrack(
+                                      role.id,
+                                      a.userId,
+                                      e.target.value || null,
+                                    )
+                                  }
+                                >
+                                  <option value="">팀 미지정</option>
+                                  {tracks.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                      {t.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
                               <button
                                 type="button"
                                 className="text-sm font-semibold text-[var(--danger)]"
@@ -544,12 +562,12 @@ export default function ProductionDetailPage({
                                 해제
                               </button>
                             </>
-                          ) : (
+                          ) : isTeamMode ? (
                             <span className="chip">
                               {tracks.find((t) => t.id === a.trackId)?.name ??
                                 "팀 미지정"}
                             </span>
-                          )}
+                          ) : null}
                         </li>
                       );
                     })}
@@ -584,11 +602,11 @@ export default function ProductionDetailPage({
         </div>
       )}
 
-      {tab === "teams" && (
+      {isTeamMode && activeTab === "teams" && (
         <div className="space-y-4">
           <p className="text-sm text-[var(--ink-muted)]">
-            A/B팀 더블캐스트용(완벽한 타인/도덕적 도둑 케이스)입니다. <br />팀에 배역·배우를 배정한 뒤 연습 유닛을
-            만드세요.
+            A/B팀 더블캐스트용입니다. <br />팀에 배역·배우를 배정하면 자동으로 연습 유닛을
+            생성할 수 있습니다. 
           </p>
           {canManage && (
             <form onSubmit={onAddTrack} className="card-panel space-y-3 p-4">
@@ -764,10 +782,10 @@ export default function ProductionDetailPage({
         </div>
       )}
 
-      {tab === "ensembles" && (
+      {activeTab === "ensembles" && (
         <div className="space-y-4">
           <p className="text-sm text-[var(--ink-muted)]">
-            장면·페어 연습 유닛(죽음 혹은 아님/올모스트 메인 케이스)입니다. <br />배역+배우 슬롯으로 확정 라인업을
+            장면·페어 연습 유닛입니다. <br />배역+배우 슬롯으로 확정 라인업을
             만듭니다.
           </p>
           {canManage && (
@@ -1035,7 +1053,7 @@ export default function ProductionDetailPage({
         </div>
       )}
 
-      {tab === "members" && (
+      {activeTab === "members" && (
         <div className="space-y-4">
           {canManage && (
             <div className="card-panel p-4">
@@ -1091,7 +1109,7 @@ export default function ProductionDetailPage({
         </div>
       )}
 
-      {tab === "rehearsals" && (
+      {activeTab === "rehearsals" && (
         <ul className="space-y-2">
           {rehearsals.length === 0 && (
             <li className="card-panel p-4 text-sm text-[var(--ink-muted)]">

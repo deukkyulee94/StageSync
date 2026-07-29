@@ -1,5 +1,9 @@
 import type { AppData } from "@/types";
-import { createEmptyData, migrate } from "@/lib/data/store";
+import {
+  createEmptyData,
+  migrate,
+  needsCastingModePersist,
+} from "@/lib/data/store";
 import { createServiceClient } from "@/lib/supabase/client";
 
 const STATE_ID = "main";
@@ -14,10 +18,6 @@ async function ensureBucket(
   await supabase.storage.createBucket(BUCKET, { public: false });
 }
 
-function normalize(raw: unknown): AppData {
-  return migrate(raw);
-}
-
 /** app_state 테이블 우선, 없으면 Storage JSON으로 저장/로드. 없으면 빈 데이터. */
 export async function loadAppDataFromDb(): Promise<AppData> {
   const supabase = createServiceClient();
@@ -29,14 +29,24 @@ export async function loadAppDataFromDb(): Promise<AppData> {
     .maybeSingle();
 
   if (!table.error && table.data?.data) {
-    return normalize(table.data.data);
+    const raw = table.data.data;
+    const migrated = migrate(raw);
+    if (needsCastingModePersist(raw)) {
+      await saveAppDataToDb(migrated);
+    }
+    return migrated;
   }
 
   await ensureBucket(supabase);
   const file = await supabase.storage.from(BUCKET).download(OBJECT_PATH);
   if (!file.error && file.data) {
     const text = await file.data.text();
-    return normalize(JSON.parse(text));
+    const raw = JSON.parse(text) as unknown;
+    const migrated = migrate(raw);
+    if (needsCastingModePersist(raw)) {
+      await saveAppDataToDb(migrated);
+    }
+    return migrated;
   }
 
   const empty = createEmptyData();

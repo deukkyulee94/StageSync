@@ -2,6 +2,7 @@ import type {
   AppData,
   AvailabilityPattern,
   AvailabilitySlot,
+  CastingMode,
   CastRole,
   DayOfWeek,
   EnsembleSlot,
@@ -143,13 +144,18 @@ export function deleteUser(data: AppData, userId: string): AppData {
 
 export function createProduction(
   data: AppData,
-  input: { title: string; description?: string },
+  input: {
+    title: string;
+    description?: string;
+    castingMode?: CastingMode;
+  },
 ): AppData {
   const production: Production = {
     id: uid("p"),
     title: input.title.trim(),
     description: input.description?.trim() ?? "",
     status: "planning",
+    castingMode: input.castingMode ?? "scene",
     createdAt: new Date().toISOString(),
   };
   return { ...data, productions: [...data.productions, production] };
@@ -158,7 +164,9 @@ export function createProduction(
 export function updateProduction(
   data: AppData,
   productionId: string,
-  patch: Partial<Pick<Production, "title" | "description" | "status">>,
+  patch: Partial<
+    Pick<Production, "title" | "description" | "status" | "castingMode">
+  >,
 ): AppData {
   return {
     ...data,

@@ -30,11 +30,25 @@ export interface User {
   createdAt: string;
 }
 
+/** 팀 단위 vs 장면 단위 */
+export type CastingMode = "team" | "scene";
+
+export const CASTING_MODE_LABELS: Record<CastingMode, string> = {
+  team: "팀 단위 (A/B 더블캐스트)",
+  scene: "장면 단위 (장면별 라인업)",
+};
+
 export interface Production {
   id: string;
   title: string;
   description: string;
   status: "planning" | "rehearsing" | "performing" | "archived";
+  /**
+   * 캐스팅 운영 방식
+   * - team: CASE1 A/B팀 더블캐스트
+   * - scene: CASE2 장면별 라인업
+   */
+  castingMode: CastingMode;
   createdAt: string;
 }
 

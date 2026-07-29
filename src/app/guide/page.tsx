@@ -178,26 +178,38 @@ function AdminGuide() {
         </Step>
         <Step n={3} title="작품 등록" href="/productions" linkLabel="작품 탭">
           <p>
-            <strong className="text-[var(--ink)]">작품</strong> → 등록에서 작품명을
-            만듭니다.
+            <strong className="text-[var(--ink)]">작품</strong> → 등록에서 작품명과{" "}
+            <strong className="text-[var(--ink)]">캐스팅 방식</strong>을 고릅니다.
           </p>
-        </Step>
-        <Step n={4} title="작품 세팅 (배역·팀·장면·멤버)">
-          <p>작품을 열어 아래 순서로 구성합니다.</p>
           <ul className="list-disc space-y-1 pl-4">
             <li>
-              <strong className="text-[var(--ink)]">배역</strong>: 배역 추가 후 배우 배정
+              <strong className="text-[var(--ink)]">장면 단위</strong>: 장면마다
+              배우 라인업 (죽음 혹은 아님 / 올모스트 메인)
             </li>
             <li>
-              <strong className="text-[var(--ink)]">팀</strong>: A/B팀 등이 있으면 구성
-              (선택)
+              <strong className="text-[var(--ink)]">팀 단위</strong>: A/B팀
+              더블캐스트 (완벽한 타인 / 도덕적 도둑)
+            </li>
+          </ul>
+        </Step>
+        <Step n={4} title="작품 세팅 (배역·장면/팀·멤버)">
+          <p>작품을 열어 캐스팅 방식에 맞게 구성합니다.</p>
+          <ul className="list-disc space-y-1 pl-4">
+            <li>
+              <strong className="text-[var(--ink)]">배역</strong>: 배역 추가 후 배우
+              배정
             </li>
             <li>
-              <strong className="text-[var(--ink)]">장면</strong>: 연습 단위(배역+배우
-              슬롯) 생성
+              <strong className="text-[var(--ink)]">장면 모드</strong>: 장면
+              탭에서 연습 단위(배역+배우 슬롯) 생성
             </li>
             <li>
-              <strong className="text-[var(--ink)]">멤버</strong>: 작품에 속할 사람 추가
+              <strong className="text-[var(--ink)]">팀 모드</strong>: 팀 탭에서
+              A/B팀 구성 후 연습 유닛 생성
+            </li>
+            <li>
+              <strong className="text-[var(--ink)]">멤버</strong>: 작품에 속할 사람
+              추가
             </li>
           </ul>
           <Link
